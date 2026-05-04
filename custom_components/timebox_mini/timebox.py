@@ -79,11 +79,16 @@ class Timebox:
 
     def connect(self):
         if (not self.sock):
+            self.sock = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, BTPROTO_RFCOMM)
+            self.sock.settimeout(CONNECT_TIMEOUT)
             self.sock.connect((self.addr, 4))
+            self.sock.settimeout(ACK_TIMEOUT)
         self._drain_initial_hello()
 
     def disconnect(self):
-        self.sock.close()
+        if self.sock:
+            self.sock.close()
+            self.sock = None
 
     def send(self, package, recv=True, expected_command=None, retries=DEFAULT_SEND_RETRIES):
         package_bytes = bytes(bytearray(package))

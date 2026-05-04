@@ -1,5 +1,6 @@
 from PIL import Image
 from colour import Color
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.util import slugify
 from itertools import product
 from .text import render_moving_text_frames
@@ -8,6 +9,7 @@ import datetime
 import logging
 import math
 import os
+import time
 
 # Width/height of the Timebox (11x11 for the Mini), can be changed for other Timebox support (untested)
 TIMEBOX_SIZE = 11
@@ -39,6 +41,7 @@ DEFAULT_MOVING_TEXT_COLOR = [255, 255, 255]
 DEFAULT_MOVING_TEXT_BACKGROUND_COLOR = [0, 0, 0]
 MAX_ANIMATION_FRAMES = 256
 LAST_ANIMATION_FRAME_COUNTS = {}
+TIMEBOX_CONNECTIONS = {}
 
 
 VIEWTYPES = {
@@ -191,6 +194,36 @@ def set_last_animation_frame_count(mac, frame_count):
     LAST_ANIMATION_FRAME_COUNTS[current_view_entity_id(mac)] = bound_animation_frame_count(frame_count)
 
 
+def get_timebox(mac):
+    dev = TIMEBOX_CONNECTIONS.get(mac)
+    if dev is None:
+        dev = Timebox(mac)
+        dev.connect()
+        TIMEBOX_CONNECTIONS[mac] = dev
+        _LOGGER.debug("Connected to %s", mac)
+    else:
+        if not dev.sock:
+            dev.connect()
+        _LOGGER.debug("Reusing connection to %s", mac)
+    return dev
+
+
+def close_timebox(mac):
+    dev = TIMEBOX_CONNECTIONS.pop(mac, None)
+    if dev is None:
+        return
+
+    try:
+        dev.disconnect()
+    except Exception as e:
+        _LOGGER.debug("Error disconnecting from %s: %s", mac, e)
+
+
+def close_all_timeboxes(event=None):
+    for mac in list(TIMEBOX_CONNECTIONS):
+        close_timebox(mac)
+
+
 def pad_animation_tail(frames, frame_count, blank_frame):
     target_frame_count = max(frame_count, len(frames))
     if target_frame_count > MAX_ANIMATION_FRAMES:
@@ -339,6 +372,15 @@ def send_animation(dev, frames, delay=0, retries=DEFAULT_SEND_RETRIES):
                             attempt + 1, retries)
 
 
+def send_static_frames(dev, frames, frame_delay=0.2):
+    last_frame_index = len(frames) - 1
+
+    for index, frame in enumerate(frames):
+        dev.send(conv_image(frame), recv=index == last_frame_index)
+        if index < last_frame_index:
+            time.sleep(frame_delay)
+
+
 def setup(hass, config):
     def handle_action(call):
         mac = call.data.get(ATTR_MAC, "00:00:00:00:00:00")
@@ -349,9 +391,7 @@ def setup(hass, config):
             return
 
         try:
-            dev = Timebox(mac)
-            dev.connect()
-            _LOGGER.debug('Connected to %s' % mac)
+            dev = get_timebox(mac)
         except Exception as e:
             _LOGGER.error('Error connecting to %s : %s' % (mac, e))
             return
@@ -398,6 +438,7 @@ def setup(hass, config):
                 repeat = clamp_int(call.data.get(ATTR_REPEAT), 1, 1, 10)
                 direction = call.data.get(ATTR_DIRECTION, "left")
                 delay = max(1, 11 - speed)
+                frame_delay = delay * 0.2
                 rendered_frames = render_moving_text_frames(
                     text,
                     color=color,
@@ -410,12 +451,10 @@ def setup(hass, config):
                     frames.extend(process_image(frame) for frame in rendered_frames)
 
                 text_frame_count = len(frames)
-                previous_frame_count = get_last_animation_frame_count(hass, mac)
-                blank_frame = process_image(rendered_frames[0])
-                frames = pad_animation_tail(frames, previous_frame_count, blank_frame)
+                dynamic_frame_count = get_last_animation_frame_count(hass, mac)
 
                 _LOGGER.debug('Action : moving_text %s', text)
-                send_animation(dev, frames, delay=delay)
+                send_static_frames(dev, frames, frame_delay=frame_delay)
                 hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
                                 new_state=action,
                                 attributes={
@@ -426,9 +465,9 @@ def setup(hass, config):
                                     'repeat': repeat,
                                     'direction': direction,
                                     ATTR_TEXT_FRAME_COUNT: text_frame_count,
-                                    ATTR_ANIMATION_FRAME_COUNT: len(frames),
+                                    ATTR_ANIMATION_FRAME_COUNT: dynamic_frame_count,
                                 })
-                set_last_animation_frame_count(mac, len(frames))
+                set_last_animation_frame_count(mac, dynamic_frame_count)
 
             elif action == "weather":
                 _LOGGER.debug('Action : weather')
@@ -467,14 +506,11 @@ def setup(hass, config):
                 _LOGGER.error("Unknown Timebox Mini action '%s'", action)
 
         except Exception as e:
+            close_timebox(mac)
             _LOGGER.error("Error running Timebox Mini action '%s' on %s: %s", action, mac, e)
-        finally:
-            try:
-                dev.disconnect()
-            except Exception as e:
-                _LOGGER.debug("Error disconnecting from %s: %s", mac, e)
 
     hass.services.register(DOMAIN, "action", handle_action)
+    hass.bus.listen_once(EVENT_HOMEASSISTANT_STOP, close_all_timeboxes)
 
     # Return boolean to indicate that initialization was successfully.
     return True
