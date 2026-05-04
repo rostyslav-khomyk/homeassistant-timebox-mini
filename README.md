@@ -1,5 +1,5 @@
 # homeassistant-timebox-mini
-[![hacs_badge](https://img.shields.io/badge/custom%20repository%20for-HACS-%2303a9f4.svg?style=flat-square&logo=homeassistant&logoColor=white)](https://hacs.xyz/) ![hacs_badge](https://img.shields.io/github/languages/top/mathoudebine/homeassistant-timebox-mini?style=flat-square)
+[![hacs_badge](https://img.shields.io/badge/custom%20repository%20for-HACS-%2303a9f4.svg?style=flat-square&logo=homeassistant&logoColor=white)](https://hacs.xyz/) ![hacs_badge](https://img.shields.io/github/languages/top/rostyslav-khomyk/homeassistant-timebox-mini?style=flat-square)
 
 Divoom Timebox Mini custom service component for Home Assistant.
 
@@ -21,7 +21,7 @@ Timebox protocol extracted from [ScR4tCh/timebox](https://github.com/ScR4tCh/tim
     
 The Divoom Timebox Mini is a Bluetooth speaker with a 11x11 RGB LED matrix.
 
-![Timebox Mini](https://raw.githubusercontent.com/mathoudebine/homeassistant-timebox-mini/main/res/timebox-mini.jpg)
+![Timebox Mini](https://raw.githubusercontent.com/rostyslav-khomyk/homeassistant-timebox-mini/main/res/timebox-mini.jpg)
 
 This component allow to run the following actions on your Timebox Mini from a HomeAssistant service:
 - Set the clock automatically from your system clock
@@ -29,9 +29,10 @@ This component allow to run the following actions on your Timebox Mini from a Ho
 - Set the audio volume level
 - Set the LED brightness level
 - Display the weather information (you have to use Divoom phone app to send weather info to your timebox)
+- Display moving text with configurable text color, background color, speed, repeat count, and direction
 - Display a picture/animation from predefined choices (see [matrices](custom_components/timebox_mini/matrices) and [animations](custom_components/timebox_mini/animations) folders) :
 
-<img src="https://raw.githubusercontent.com/mathoudebine/homeassistant-timebox-mini/main/res/timebox-mini-homeassistant.png" width="200"/><img src="https://raw.githubusercontent.com/mathoudebine/homeassistant-timebox-mini/main/res/timebox-mini-hourglass.png" width="200"/><img src="https://raw.githubusercontent.com/mathoudebine/homeassistant-timebox-mini/main/res/timebox-mini-locked.png" width="200"/><img src="https://raw.githubusercontent.com/mathoudebine/homeassistant-timebox-mini/main/res/timebox-mini-unlocked.png" width="200"/><img src="https://raw.githubusercontent.com/mathoudebine/homeassistant-timebox-mini/main/res/timebox-mini-small-bell.png" width="200"/><img src="https://raw.githubusercontent.com/mathoudebine/homeassistant-timebox-mini/main/res/timebox-mini-green-check.png" width="200"/><img src="https://raw.githubusercontent.com/mathoudebine/homeassistant-timebox-mini/main/res/timebox-mini-red-cross.png" width="200"/><img src="https://raw.githubusercontent.com/mathoudebine/homeassistant-timebox-mini/main/res/timebox-mini-orange-warning.png" width="200"/>
+<img src="https://raw.githubusercontent.com/rostyslav-khomyk/homeassistant-timebox-mini/main/res/timebox-mini-homeassistant.png" width="200"/><img src="https://raw.githubusercontent.com/rostyslav-khomyk/homeassistant-timebox-mini/main/res/timebox-mini-hourglass.png" width="200"/><img src="https://raw.githubusercontent.com/rostyslav-khomyk/homeassistant-timebox-mini/main/res/timebox-mini-locked.png" width="200"/><img src="https://raw.githubusercontent.com/rostyslav-khomyk/homeassistant-timebox-mini/main/res/timebox-mini-unlocked.png" width="200"/><img src="https://raw.githubusercontent.com/rostyslav-khomyk/homeassistant-timebox-mini/main/res/timebox-mini-small-bell.png" width="200"/><img src="https://raw.githubusercontent.com/rostyslav-khomyk/homeassistant-timebox-mini/main/res/timebox-mini-green-check.png" width="200"/><img src="https://raw.githubusercontent.com/rostyslav-khomyk/homeassistant-timebox-mini/main/res/timebox-mini-red-cross.png" width="200"/><img src="https://raw.githubusercontent.com/rostyslav-khomyk/homeassistant-timebox-mini/main/res/timebox-mini-orange-warning.png" width="200"/>
 
 ## Limitations
 This service cannot be used to control multiple Divoom devices from one HomeAssistant instance:
@@ -73,7 +74,7 @@ If you run Home Assistant in a virtual machine, you have to connect your compute
 ### Automatic: add repository to HACS
 1. Make sure [HACS](https://hacs.xyz/) is installed.  
 2. Go to HACS > Frontend > Three dots > Custom repositories  
-3. Add `https://github.com/mathoudebine/homeassistant-timebox-mini` as a custom repository (category: integration)  
+3. Add `https://github.com/rostyslav-khomyk/homeassistant-timebox-mini` as a custom repository (category: integration)  
 4. Install "Timebox Mini service" that appeared in your Integrations tab  
 
 ### Manual: Copying into custom_components folder
@@ -100,13 +101,31 @@ In order to enable this custom device_tracker component, add this code snippet t
 timebox_mini:
 ```
 After restart, the `timebox_mini.action` service will be available. You only need the MAC address of your Timebox.
-![Timebox Mini Service](https://raw.githubusercontent.com/mathoudebine/homeassistant-timebox-mini/main/res/service.png)
+![Timebox Mini Service](https://raw.githubusercontent.com/rostyslav-khomyk/homeassistant-timebox-mini/main/res/service.png)
 
 When you run an action that changes what is displayed on the Timebox, an entity will be created to save the current displayed state.
 
-![Timebox Mini entity](https://raw.githubusercontent.com/mathoudebine/homeassistant-timebox-mini/main/res/entity.png)
+![Timebox Mini entity](https://raw.githubusercontent.com/rostyslav-khomyk/homeassistant-timebox-mini/main/res/entity.png)
 
 Please note that if you change the content on your Timebox without using the service (i.e. mobile app) this entity will not be updated.
+
+### Moving text action
+Use the `moving_text` action to render text into generated 11x11 animation frames:
+
+```yaml
+service: timebox_mini.action
+data:
+  mac_addr: "11:75:58:7B:8B:29"
+  action: moving_text
+  text: "DOOR OPEN"
+  color: [255, 0, 0]
+  background_color: [0, 0, 0]
+  speed: 10
+  repeat: 1
+  direction: left
+```
+
+Long messages can generate more frames than the Timebox animation command supports. If Home Assistant logs a frame-limit error, use shorter text or a lower repeat value.
 
 ## Troubleshooting
 If the actions are not applied to your Timebox when calling the service, you may need to pair manually with your device first using your OS Bluetooth settings or bluetoothctl:
@@ -167,4 +186,3 @@ Copy the .gif to the [animations](custom_components/timebox_mini/animations) fol
 ## TODO
 - Specify which bluetooth adapter to use (to have multiple Timebox, one per adapter)
 - Weather info setting
-- [Moving text](https://github.com/DaveDavenport/timebox/blob/master/examples/movingtext.py)

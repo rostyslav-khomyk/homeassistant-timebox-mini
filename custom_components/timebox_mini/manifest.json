@@ -1,9 +1,9 @@
 {
   "domain": "timebox_mini",
   "name": "Timebox Mini",
-  "version": "1.0.2",
-  "documentation": "https://github.com/mathoudebine/homeassistant-timebox-mini",
-  "issue_tracker": "https://github.com/mathoudebine/homeassistant-timebox-mini/issues",
+  "version": "1.0.3",
+  "documentation": "https://github.com/rostyslav-khomyk/homeassistant-timebox-mini",
+  "issue_tracker": "https://github.com/rostyslav-khomyk/homeassistant-timebox-mini/issues",
   "requirements": [
     "colour",
     "pillow",
@@ -11,7 +11,7 @@
   ],
   "dependencies": [],
   "codeowners": [
-    "@mathoudebine"
+    "@rostyslav-khomyk"
   ],
   "iot_class": "assumed_state"
 }

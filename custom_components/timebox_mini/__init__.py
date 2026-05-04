@@ -2,6 +2,7 @@ from PIL import Image
 from colour import Color
 from homeassistant.util import slugify
 from itertools import product
+from .text import render_moving_text_frames
 from .timebox import Timebox
 import datetime
 import logging
@@ -25,6 +26,16 @@ ATTR_IMAGE = "image"
 ATTR_ANIM = "animation"
 ATTR_VOLUME = "volume"
 ATTR_BRIGHTNESS = "brightness"
+ATTR_TEXT = "text"
+ATTR_COLOR = "color"
+ATTR_BACKGROUND_COLOR = "background_color"
+ATTR_SPEED = "speed"
+ATTR_REPEAT = "repeat"
+ATTR_DIRECTION = "direction"
+
+DEFAULT_MOVING_TEXT_COLOR = [255, 255, 255]
+DEFAULT_MOVING_TEXT_BACKGROUND_COLOR = [0, 0, 0]
+MAX_ANIMATION_FRAMES = 256
 
 
 VIEWTYPES = {
@@ -119,6 +130,14 @@ def set_brightness(value):
     ck1, ck2 = checksum(sum(head))
     msg = [0x01] + mask(head) + mask([ck1, ck2]) + [0x02]
     return msg
+
+
+def clamp_int(value, default, minimum, maximum):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
 
 
 def analyseImage(im):
@@ -253,73 +272,126 @@ def setup(hass, config):
             _LOGGER.error('Error connecting to %s : %s' % (mac, e))
             return
 
-        c = color_convert(Color("white").get_rgb())
+        try:
+            c = color_convert(Color("white").get_rgb())
 
-        if action == "image":
-            image = call.data.get(ATTR_IMAGE, "home_assistant_black")
-            _LOGGER.debug('Action : image %s' % (dir_path + "/matrices/" + image + ".png"))
-            dev.send(conv_image(load_image(dir_path + "/matrices/" + image + ".png")))
-            hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
-                            new_state=action,
-                            attributes={'image': image})
+            if action == "image":
+                image = call.data.get(ATTR_IMAGE, "home_assistant_black")
+                _LOGGER.debug('Action : image %s' % (dir_path + "/matrices/" + image + ".png"))
+                dev.send(conv_image(load_image(dir_path + "/matrices/" + image + ".png")))
+                hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
+                                new_state=action,
+                                attributes={'image': image})
 
-        elif action == "animation":
-            anim = call.data.get(ATTR_ANIM, "orange_warning")
-            _LOGGER.debug('Action : animation %s' % (dir_path + "/animations/" + anim + ".gif"))
-            frames = []
-            imagedata = Image.open(dir_path + "/animations/" + anim + ".gif")
-            # Get duration of first frame and use it for all animation
-            delay = int(imagedata.info['duration']/200)
-            if delay <= 0:
-                delay = 1
-            for f in load_gif_frames(imagedata):
-                frames.append(f)
-            i = 0
-            for f in prepare_animation(frames, delay=delay):
-                i = i + 1
-                if i == len(frames):
-                    dev.send(f)
-                else:
-                    dev.send(f, False)
-            hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
-                            new_state=action,
-                            attributes={'animation': anim})
+            elif action == "animation":
+                anim = call.data.get(ATTR_ANIM, "orange_warning")
+                _LOGGER.debug('Action : animation %s' % (dir_path + "/animations/" + anim + ".gif"))
+                frames = []
+                imagedata = Image.open(dir_path + "/animations/" + anim + ".gif")
+                # Get duration of first frame and use it for all animation
+                delay = int(imagedata.info['duration']/200)
+                if delay <= 0:
+                    delay = 1
+                for f in load_gif_frames(imagedata):
+                    frames.append(f)
+                i = 0
+                for f in prepare_animation(frames, delay=delay):
+                    i = i + 1
+                    if i == len(frames):
+                        dev.send(f)
+                    else:
+                        dev.send(f, False)
+                hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
+                                new_state=action,
+                                attributes={'animation': anim})
 
-        elif action == "weather":
-            _LOGGER.debug('Action : weather')
-            dev.send(set_temp_color(c[0], c[1], c[2], 0xff))
-            hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
-                            new_state=action)
+            elif action == "moving_text":
+                text = call.data.get(ATTR_TEXT, "")
+                color = call.data.get(ATTR_COLOR, DEFAULT_MOVING_TEXT_COLOR)
+                background_color = call.data.get(ATTR_BACKGROUND_COLOR, DEFAULT_MOVING_TEXT_BACKGROUND_COLOR)
+                speed = clamp_int(call.data.get(ATTR_SPEED), 10, 1, 10)
+                repeat = clamp_int(call.data.get(ATTR_REPEAT), 1, 1, 10)
+                direction = call.data.get(ATTR_DIRECTION, "left")
+                delay = max(1, 11 - speed)
+                rendered_frames = render_moving_text_frames(
+                    text,
+                    color=color,
+                    background_color=background_color,
+                    direction=direction,
+                    size=TIMEBOX_SIZE,
+                )
+                frames = []
+                for _ in range(repeat):
+                    frames.extend(process_image(frame) for frame in rendered_frames)
 
-        elif action == "clock":
-            _LOGGER.debug('Action : clock')
-            dev.send(set_time_color(c[0], c[1], c[2], 0xff))
-            hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
-                            new_state=action)
+                if len(frames) > MAX_ANIMATION_FRAMES:
+                    raise ValueError(
+                        "Moving text generated %d frames; maximum is %d. Use shorter text or a lower repeat value."
+                        % (len(frames), MAX_ANIMATION_FRAMES)
+                    )
 
-        elif action == "set_volume":
-            vol = call.data.get(ATTR_VOLUME, 4)
-            _LOGGER.debug('Action : set_volume %d' % vol)
-            head = [0x04, 0x00, 0x08]
-            ck1, ck2 = checksum(sum(head) + vol)
-            dev.send([0x01] + head + mask([vol]) + mask([ck1, ck2]) + [0x02])
+                _LOGGER.debug('Action : moving_text %s', text)
+                i = 0
+                for f in prepare_animation(frames, delay=delay):
+                    i = i + 1
+                    if i == len(frames):
+                        dev.send(f)
+                    else:
+                        dev.send(f, False)
+                hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
+                                new_state=action,
+                                attributes={
+                                    'text': text,
+                                    'color': color,
+                                    'background_color': background_color,
+                                    'speed': speed,
+                                    'repeat': repeat,
+                                    'direction': direction,
+                                })
 
-        elif action == "set_time":
-            _LOGGER.debug('Action : set_time')
-            dt = datetime.datetime.now()
-            head = [0x0A, 0x00, 0x18, dt.year % 100, int(dt.year / 100), dt.month, dt.day, dt.hour, dt.minute,
-                    dt.second]
-            s = sum(head)
-            ck1, ck2 = checksum(s)
-            dev.send([0x01] + mask(head) + mask([ck1, ck2]) + [0x02])
+            elif action == "weather":
+                _LOGGER.debug('Action : weather')
+                dev.send(set_temp_color(c[0], c[1], c[2], 0xff))
+                hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
+                                new_state=action)
 
-        elif action == "set_brightness":
-            value = call.data.get(ATTR_BRIGHTNESS, 50)
-            _LOGGER.debug('Action : set_brightness %d', value)
-            dev.send(set_brightness(value))
- 
-        # Disconnect from device
-        dev.disconnect()
+            elif action == "clock":
+                _LOGGER.debug('Action : clock')
+                dev.send(set_time_color(c[0], c[1], c[2], 0xff))
+                hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
+                                new_state=action)
+
+            elif action == "set_volume":
+                vol = call.data.get(ATTR_VOLUME, 4)
+                _LOGGER.debug('Action : set_volume %d' % vol)
+                head = [0x04, 0x00, 0x08]
+                ck1, ck2 = checksum(sum(head) + vol)
+                dev.send([0x01] + head + mask([vol]) + mask([ck1, ck2]) + [0x02])
+
+            elif action == "set_time":
+                _LOGGER.debug('Action : set_time')
+                dt = datetime.datetime.now()
+                head = [0x0A, 0x00, 0x18, dt.year % 100, int(dt.year / 100), dt.month, dt.day, dt.hour, dt.minute,
+                        dt.second]
+                s = sum(head)
+                ck1, ck2 = checksum(s)
+                dev.send([0x01] + mask(head) + mask([ck1, ck2]) + [0x02])
+
+            elif action == "set_brightness":
+                value = call.data.get(ATTR_BRIGHTNESS, 50)
+                _LOGGER.debug('Action : set_brightness %d', value)
+                dev.send(set_brightness(value))
+
+            else:
+                _LOGGER.error("Unknown Timebox Mini action '%s'", action)
+
+        except Exception as e:
+            _LOGGER.error("Error running Timebox Mini action '%s' on %s: %s", action, mac, e)
+        finally:
+            try:
+                dev.disconnect()
+            except Exception as e:
+                _LOGGER.debug("Error disconnecting from %s: %s", mac, e)
 
     hass.services.register(DOMAIN, "action", handle_action)
 
