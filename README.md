@@ -126,6 +126,7 @@ data:
 ```
 
 Long messages can generate more frames than the Timebox animation command supports. If Home Assistant logs a frame-limit error, use shorter text or a lower repeat value.
+When replacing one moving text with a shorter one, the integration overwrites the old animation tail with blank frames so messages do not run together.
 
 ## Troubleshooting
 If the actions are not applied to your Timebox when calling the service, you may need to pair manually with your device first using your OS Bluetooth settings or bluetoothctl:

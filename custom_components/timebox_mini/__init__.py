@@ -32,10 +32,13 @@ ATTR_BACKGROUND_COLOR = "background_color"
 ATTR_SPEED = "speed"
 ATTR_REPEAT = "repeat"
 ATTR_DIRECTION = "direction"
+ATTR_ANIMATION_FRAME_COUNT = "animation_frame_count"
+ATTR_TEXT_FRAME_COUNT = "text_frame_count"
 
 DEFAULT_MOVING_TEXT_COLOR = [255, 255, 255]
 DEFAULT_MOVING_TEXT_BACKGROUND_COLOR = [0, 0, 0]
 MAX_ANIMATION_FRAMES = 256
+LAST_ANIMATION_FRAME_COUNTS = {}
 
 
 VIEWTYPES = {
@@ -138,6 +141,70 @@ def clamp_int(value, default, minimum, maximum):
     except (TypeError, ValueError):
         value = default
     return max(minimum, min(maximum, value))
+
+
+def current_view_entity_id(mac):
+    return DOMAIN + "." + slugify(mac) + "_current_view"
+
+
+def bound_animation_frame_count(frame_count):
+    return max(0, min(MAX_ANIMATION_FRAMES, frame_count))
+
+
+def get_last_animation_frame_count(hass, mac):
+    entity_id = current_view_entity_id(mac)
+    cached_count = LAST_ANIMATION_FRAME_COUNTS.get(entity_id)
+    if cached_count is not None:
+        return cached_count
+
+    state = hass.states.get(entity_id)
+    if state is None:
+        return 0
+
+    try:
+        frame_count = int(state.attributes.get(ATTR_ANIMATION_FRAME_COUNT, 0))
+    except (TypeError, ValueError):
+        frame_count = 0
+
+    if frame_count > 0:
+        return bound_animation_frame_count(frame_count)
+
+    if state.state != "moving_text":
+        return 0
+
+    try:
+        repeat = clamp_int(state.attributes.get(ATTR_REPEAT), 1, 1, 10)
+        frames = render_moving_text_frames(
+            state.attributes.get(ATTR_TEXT, ""),
+            color=state.attributes.get(ATTR_COLOR, DEFAULT_MOVING_TEXT_COLOR),
+            background_color=state.attributes.get(ATTR_BACKGROUND_COLOR, DEFAULT_MOVING_TEXT_BACKGROUND_COLOR),
+            direction=state.attributes.get(ATTR_DIRECTION, "left"),
+            size=TIMEBOX_SIZE,
+        )
+        return bound_animation_frame_count(len(frames) * repeat)
+    except Exception as e:
+        _LOGGER.debug("Could not infer previous moving text frame count for %s: %s", mac, e)
+        return 0
+
+
+def set_last_animation_frame_count(mac, frame_count):
+    LAST_ANIMATION_FRAME_COUNTS[current_view_entity_id(mac)] = bound_animation_frame_count(frame_count)
+
+
+def pad_animation_tail(frames, frame_count, blank_frame):
+    target_frame_count = max(frame_count, len(frames))
+    if target_frame_count > MAX_ANIMATION_FRAMES:
+        raise ValueError(
+            "Animation generated %d frames; maximum is %d. Use shorter text/animation or a lower repeat value."
+            % (target_frame_count, MAX_ANIMATION_FRAMES)
+        )
+
+    # The Timebox keeps older dynamic animation frames after the new last frame.
+    # Overwrite that tail with blank frames so a shorter message does not replay stale content.
+    if target_frame_count > len(frames):
+        frames = frames + [blank_frame] * (target_frame_count - len(frames))
+
+    return frames
 
 
 def analyseImage(im):
@@ -294,6 +361,9 @@ def setup(hass, config):
                     delay = 1
                 for f in load_gif_frames(imagedata):
                     frames.append(f)
+                previous_frame_count = get_last_animation_frame_count(hass, mac)
+                blank_frame = process_image(Image.new("RGBA", (TIMEBOX_SIZE, TIMEBOX_SIZE), (0, 0, 0, 255)))
+                frames = pad_animation_tail(frames, previous_frame_count, blank_frame)
                 i = 0
                 for f in prepare_animation(frames, delay=delay):
                     i = i + 1
@@ -303,7 +373,11 @@ def setup(hass, config):
                         dev.send(f, False)
                 hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
                                 new_state=action,
-                                attributes={'animation': anim})
+                                attributes={
+                                    'animation': anim,
+                                    ATTR_ANIMATION_FRAME_COUNT: len(frames),
+                                })
+                set_last_animation_frame_count(mac, len(frames))
 
             elif action == "moving_text":
                 text = call.data.get(ATTR_TEXT, "")
@@ -324,11 +398,10 @@ def setup(hass, config):
                 for _ in range(repeat):
                     frames.extend(process_image(frame) for frame in rendered_frames)
 
-                if len(frames) > MAX_ANIMATION_FRAMES:
-                    raise ValueError(
-                        "Moving text generated %d frames; maximum is %d. Use shorter text or a lower repeat value."
-                        % (len(frames), MAX_ANIMATION_FRAMES)
-                    )
+                text_frame_count = len(frames)
+                previous_frame_count = get_last_animation_frame_count(hass, mac)
+                blank_frame = process_image(rendered_frames[0])
+                frames = pad_animation_tail(frames, previous_frame_count, blank_frame)
 
                 _LOGGER.debug('Action : moving_text %s', text)
                 i = 0
@@ -347,7 +420,10 @@ def setup(hass, config):
                                     'speed': speed,
                                     'repeat': repeat,
                                     'direction': direction,
+                                    ATTR_TEXT_FRAME_COUNT: text_frame_count,
+                                    ATTR_ANIMATION_FRAME_COUNT: len(frames),
                                 })
+                set_last_animation_frame_count(mac, len(frames))
 
             elif action == "weather":
                 _LOGGER.debug('Action : weather')
