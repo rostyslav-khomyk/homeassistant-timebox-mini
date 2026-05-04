@@ -3,7 +3,7 @@ from colour import Color
 from homeassistant.util import slugify
 from itertools import product
 from .text import render_moving_text_frames
-from .timebox import Timebox
+from .timebox import DEFAULT_SEND_RETRIES, Timebox, TimeboxAcknowledgementError
 import datetime
 import logging
 import math
@@ -322,6 +322,23 @@ def prepare_animation(frames, delay=0):
     return ret
 
 
+def send_animation(dev, frames, delay=0, retries=DEFAULT_SEND_RETRIES):
+    packets = prepare_animation(frames, delay=delay)
+
+    for attempt in range(retries + 1):
+        try:
+            for packet in packets[:-1]:
+                dev.send(packet, recv=False)
+            if packets:
+                dev.send(packets[-1], recv=True, retries=0)
+            return
+        except TimeboxAcknowledgementError:
+            if attempt >= retries:
+                raise
+            _LOGGER.warning("No acknowledgement for final animation frame, retrying full animation (%d/%d)",
+                            attempt + 1, retries)
+
+
 def setup(hass, config):
     def handle_action(call):
         mac = call.data.get(ATTR_MAC, "00:00:00:00:00:00")
@@ -364,13 +381,7 @@ def setup(hass, config):
                 previous_frame_count = get_last_animation_frame_count(hass, mac)
                 blank_frame = process_image(Image.new("RGBA", (TIMEBOX_SIZE, TIMEBOX_SIZE), (0, 0, 0, 255)))
                 frames = pad_animation_tail(frames, previous_frame_count, blank_frame)
-                i = 0
-                for f in prepare_animation(frames, delay=delay):
-                    i = i + 1
-                    if i == len(frames):
-                        dev.send(f)
-                    else:
-                        dev.send(f, False)
+                send_animation(dev, frames, delay=delay)
                 hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
                                 new_state=action,
                                 attributes={
@@ -404,13 +415,7 @@ def setup(hass, config):
                 frames = pad_animation_tail(frames, previous_frame_count, blank_frame)
 
                 _LOGGER.debug('Action : moving_text %s', text)
-                i = 0
-                for f in prepare_animation(frames, delay=delay):
-                    i = i + 1
-                    if i == len(frames):
-                        dev.send(f)
-                    else:
-                        dev.send(f, False)
+                send_animation(dev, frames, delay=delay)
                 hass.states.set(entity_id=DOMAIN + "." + slugify(mac) + "_current_view",
                                 new_state=action,
                                 attributes={
