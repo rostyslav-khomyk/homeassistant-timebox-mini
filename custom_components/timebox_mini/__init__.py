@@ -1,15 +1,23 @@
 from PIL import Image
 from colour import Color
-from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.const import CONF_HOST, CONF_PORT, EVENT_HOMEASSISTANT_STOP
+import homeassistant.helpers.config_validation as cv
 from homeassistant.util import slugify
 from itertools import product
 from .text import render_moving_text_frames
-from .timebox import DEFAULT_SEND_RETRIES, Timebox, TimeboxAcknowledgementError
+from .timebox import (
+    DEFAULT_PROXY_PORT,
+    DEFAULT_RFCOMM_CHANNEL,
+    DEFAULT_SEND_RETRIES,
+    Timebox,
+    TimeboxAcknowledgementError,
+)
 import datetime
 import logging
 import math
 import os
 import time
+import voluptuous as vol
 
 # Width/height of the Timebox (11x11 for the Mini), can be changed for other Timebox support (untested)
 TIMEBOX_SIZE = 11
@@ -36,12 +44,34 @@ ATTR_REPEAT = "repeat"
 ATTR_DIRECTION = "direction"
 ATTR_ANIMATION_FRAME_COUNT = "animation_frame_count"
 ATTR_TEXT_FRAME_COUNT = "text_frame_count"
+CONF_RFCOMM_CHANNEL = "rfcomm_channel"
+CONF_DEVICE_ADDR = "device_addr"
 
 DEFAULT_MOVING_TEXT_COLOR = [255, 255, 255]
 DEFAULT_MOVING_TEXT_BACKGROUND_COLOR = [0, 0, 0]
 MAX_ANIMATION_FRAMES = 256
 LAST_ANIMATION_FRAME_COUNTS = {}
 TIMEBOX_CONNECTIONS = {}
+TIMEBOX_PROXY_HOST = None
+TIMEBOX_PROXY_PORT = DEFAULT_PROXY_PORT
+TIMEBOX_RFCOMM_CHANNEL = DEFAULT_RFCOMM_CHANNEL
+
+
+CONFIG_SCHEMA = vol.Schema(
+    {
+        DOMAIN: vol.Schema(
+            {
+                vol.Optional(CONF_DEVICE_ADDR): cv.string,
+                vol.Optional(CONF_HOST): cv.string,
+                vol.Optional(CONF_PORT, default=DEFAULT_PROXY_PORT): cv.port,
+                vol.Optional(CONF_RFCOMM_CHANNEL, default=DEFAULT_RFCOMM_CHANNEL): vol.All(
+                    vol.Coerce(int), vol.Range(min=1, max=30)
+                ),
+            }
+        )
+    },
+    extra=vol.ALLOW_EXTRA,
+)
 
 
 VIEWTYPES = {
@@ -197,8 +227,12 @@ def set_last_animation_frame_count(mac, frame_count):
 def get_timebox(mac):
     dev = TIMEBOX_CONNECTIONS.get(mac)
     if dev is None:
-        dev = Timebox(mac)
-        dev.connect()
+        dev = Timebox(
+            mac,
+            proxy_host=TIMEBOX_PROXY_HOST,
+            proxy_port=TIMEBOX_PROXY_PORT,
+            rfcomm_channel=TIMEBOX_RFCOMM_CHANNEL,
+        )
         TIMEBOX_CONNECTIONS[mac] = dev
         _LOGGER.debug("Connected to %s", mac)
     else:
@@ -382,6 +416,21 @@ def send_static_frames(dev, frames, frame_delay=0.2):
 
 
 def setup(hass, config):
+    global TIMEBOX_PROXY_HOST, TIMEBOX_PROXY_PORT, TIMEBOX_RFCOMM_CHANNEL
+
+    domain_config = config.get(DOMAIN, {}) or {}
+    TIMEBOX_PROXY_HOST = domain_config.get(CONF_HOST)
+    TIMEBOX_PROXY_PORT = domain_config.get(CONF_PORT, DEFAULT_PROXY_PORT)
+    TIMEBOX_RFCOMM_CHANNEL = domain_config.get(CONF_RFCOMM_CHANNEL, DEFAULT_RFCOMM_CHANNEL)
+
+    if TIMEBOX_PROXY_HOST:
+        _LOGGER.info(
+            "Using Timebox Bluetooth proxy at %s:%d (RFCOMM channel %d)",
+            TIMEBOX_PROXY_HOST,
+            TIMEBOX_PROXY_PORT,
+            TIMEBOX_RFCOMM_CHANNEL,
+        )
+
     def handle_action(call):
         mac = call.data.get(ATTR_MAC, "00:00:00:00:00:00")
         action = call.data.get(ATTR_ACTION, "weather")

@@ -10,6 +10,10 @@ ACK_TIMEOUT = 2.0
 CONNECT_TIMEOUT = 10.0
 HELLO_TIMEOUT = 0.5
 DEFAULT_SEND_RETRIES = 2
+DEFAULT_PROXY_PORT = 7777
+DEFAULT_RFCOMM_CHANNEL = 4
+PROXY_CONNECT = 0x69
+PROXY_DISCONNECT = 0x96
 
 
 class TimeboxAcknowledgementError(Exception):
@@ -65,30 +69,65 @@ def infer_command(package):
 class Timebox:
     debug = False
 
-    def __init__(self, target):
+    def __init__(
+        self,
+        target,
+        proxy_host=None,
+        proxy_port=DEFAULT_PROXY_PORT,
+        rfcomm_channel=DEFAULT_RFCOMM_CHANNEL,
+    ):
         self._recv_buffer = bytearray()
+        self.proxy_host = proxy_host
+        self.proxy_port = proxy_port
+        self.rfcomm_channel = rfcomm_channel
+        self._external_socket = isinstance(target, socket.socket)
+
         if isinstance(target, socket.socket):
             self.sock = target
             self.addr, _ = self.sock.getpeername()
         else:
-            self.sock = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, BTPROTO_RFCOMM)
             self.addr = target
-            self.sock.settimeout(CONNECT_TIMEOUT)
-            self.sock.connect((self.addr, 4))
-            self.sock.settimeout(ACK_TIMEOUT)
+            self.sock = None
+            self.connect()
 
     def connect(self):
         if (not self.sock):
-            self.sock = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, BTPROTO_RFCOMM)
-            self.sock.settimeout(CONNECT_TIMEOUT)
-            self.sock.connect((self.addr, 4))
+            if self.proxy_host:
+                self.sock = socket.create_connection(
+                    (self.proxy_host, self.proxy_port),
+                    timeout=CONNECT_TIMEOUT,
+                )
+                self.sock.sendall(self._proxy_control_packet(PROXY_CONNECT, include_channel=True))
+            else:
+                self.sock = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, BTPROTO_RFCOMM)
+                self.sock.settimeout(CONNECT_TIMEOUT)
+                self.sock.connect((self.addr, self.rfcomm_channel))
             self.sock.settimeout(ACK_TIMEOUT)
-        self._drain_initial_hello()
+        self._drain_initial_hello(CONNECT_TIMEOUT if self.proxy_host else HELLO_TIMEOUT)
 
     def disconnect(self):
         if self.sock:
+            if self.proxy_host and not self._external_socket:
+                try:
+                    self.sock.sendall(self._proxy_control_packet(PROXY_DISCONNECT))
+                except OSError:
+                    pass
             self.sock.close()
             self.sock = None
+
+    def _proxy_control_packet(self, command, include_channel=False):
+        try:
+            address = bytes.fromhex(self.addr.replace(":", ""))
+        except (AttributeError, ValueError) as err:
+            raise ValueError("Invalid Timebox Bluetooth MAC address: %s" % self.addr) from err
+
+        if len(address) != 6:
+            raise ValueError("Invalid Timebox Bluetooth MAC address: %s" % self.addr)
+
+        packet = bytes([command]) + address
+        if include_channel:
+            packet += bytes([self.rfcomm_channel])
+        return packet
 
     def send(self, package, recv=True, expected_command=None, retries=DEFAULT_SEND_RETRIES):
         package_bytes = bytes(bytearray(package))
@@ -166,10 +205,10 @@ class Timebox:
             "Timed out waiting for acknowledgement for command %s" % self._format_command(expected_command)
         )
 
-    def _drain_initial_hello(self):
+    def _drain_initial_hello(self, timeout=HELLO_TIMEOUT):
         previous_timeout = self.sock.gettimeout()
         try:
-            self.sock.settimeout(HELLO_TIMEOUT)
+            self.sock.settimeout(timeout)
             try:
                 chunk = self.sock.recv(256)
             except socket.timeout:

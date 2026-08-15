@@ -109,6 +109,21 @@ When you run an action that changes what is displayed on the Timebox, an entity 
 
 Please note that if you change the content on your Timebox without using the service (i.e. mobile app) this entity will not be updated.
 
+### ESP32 Bluetooth Classic proxy
+
+Timebox Mini uses Bluetooth Classic RFCOMM, so it cannot use Home Assistant's or ESPHome's standard BLE proxy. This fork can instead route the existing `timebox_mini.action` service through a compatible ESP32 TCP bridge.
+
+Configure the integration with the proxy hostname, TCP port, and the Timebox Mini RFCOMM channel:
+
+```yaml
+timebox_mini:
+  host: ble2hass.local
+  port: 7777
+  rfcomm_channel: 4
+```
+
+The service calls and automations remain unchanged. When `host` is omitted, the integration continues to use the Home Assistant host's local Bluetooth adapter directly.
+
 ### Moving text action
 Use the `moving_text` action to render scrolling text with a generated pixel font:
 
