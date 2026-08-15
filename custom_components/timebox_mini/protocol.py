@@ -1,5 +1,7 @@
 """Small, device-specific Timebox Mini protocol helpers."""
 
+import time
+
 
 def mask(values):
     """Escape Timebox framing bytes inside a command."""
@@ -43,3 +45,17 @@ def set_sleep_sound(enabled, mode=0, safety_minutes=1):
     if not 1 <= safety_minutes <= 255:
         raise ValueError("Timebox sound safety timer must be between 1 and 255 minutes")
     return build_command(0x40, safety_minutes, mode, 0xFF if enabled else 0x00)
+
+
+def play_attention_sound(dev, mode=4, volume=8, duration=3.0, sleep=time.sleep):
+    """Play a built-in sound briefly and always send the stop command.
+
+    Sleep-sound mode owns the Timebox Mini display, so callers should finish
+    this cue before sending custom image or moving-text frames.
+    """
+    dev.send(set_volume(volume))
+    dev.send(set_sleep_sound(True, mode=mode))
+    try:
+        sleep(duration)
+    finally:
+        dev.send(set_sleep_sound(False, mode=mode))

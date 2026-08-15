@@ -5,7 +5,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.util import slugify
 from itertools import product
 from .text import render_moving_text_frames
-from .protocol import set_sleep_sound, set_volume
+from .protocol import play_attention_sound, set_volume
 from .timebox import (
     DEFAULT_PROXY_PORT,
     DEFAULT_RFCOMM_CHANNEL,
@@ -54,9 +54,9 @@ CONF_DEVICE_ADDR = "device_addr"
 
 DEFAULT_MOVING_TEXT_COLOR = [255, 255, 255]
 DEFAULT_MOVING_TEXT_BACKGROUND_COLOR = [0, 0, 0]
-DEFAULT_SOUND_MODE = 0
-DEFAULT_SOUND_VOLUME = 4
-DEFAULT_SOUND_DURATION = 2.0
+DEFAULT_SOUND_MODE = 4
+DEFAULT_SOUND_VOLUME = 8
+DEFAULT_SOUND_DURATION = 3.0
 MAX_ANIMATION_FRAMES = 256
 LAST_ANIMATION_FRAME_COUNTS = {}
 TIMEBOX_CONNECTIONS = {}
@@ -192,16 +192,6 @@ def clamp_float(value, default, minimum, maximum):
     return max(minimum, min(maximum, value))
 
 
-def send_attention_sound(dev, mode, volume, duration):
-    """Play a built-in sound briefly and always send the stop command."""
-    dev.send(set_volume(volume))
-    dev.send(set_sleep_sound(True, mode=mode))
-    try:
-        time.sleep(duration)
-    finally:
-        dev.send(set_sleep_sound(False, mode=mode))
-
-
 def send_moving_text_frames(
     dev,
     frames,
@@ -211,28 +201,22 @@ def send_moving_text_frames(
     sound_volume=DEFAULT_SOUND_VOLUME,
     sound_duration=DEFAULT_SOUND_DURATION,
 ):
-    """Send text frames, optionally sounding an attention cue in parallel."""
-    sound_started = False
-    sound_deadline = None
-
+    """Play an optional cue, then send moving-text frames."""
     if sound:
-        dev.send(set_volume(sound_volume))
-        dev.send(set_sleep_sound(True, mode=sound_mode))
-        sound_started = True
-        sound_deadline = time.monotonic() + sound_duration
+        # The Mini cannot keep custom image mode and sleep-sound mode active at
+        # once. Finish the cue first so the following text remains visible.
+        play_attention_sound(
+            dev,
+            mode=sound_mode,
+            volume=sound_volume,
+            duration=sound_duration,
+        )
 
     last_frame_index = len(frames) - 1
-    try:
-        for index, frame in enumerate(frames):
-            dev.send(conv_image(frame), recv=index == last_frame_index)
-            if index < last_frame_index:
-                time.sleep(frame_delay)
-            if sound_started and time.monotonic() >= sound_deadline:
-                dev.send(set_sleep_sound(False, mode=sound_mode))
-                sound_started = False
-    finally:
-        if sound_started:
-            dev.send(set_sleep_sound(False, mode=sound_mode))
+    for index, frame in enumerate(frames):
+        dev.send(conv_image(frame), recv=index == last_frame_index)
+        if index < last_frame_index:
+            time.sleep(frame_delay)
 
 
 def current_view_entity_id(mac):
@@ -632,7 +616,7 @@ def setup(hass, config):
                     sound_volume,
                     sound_duration,
                 )
-                send_attention_sound(dev, sound_mode, sound_volume, sound_duration)
+                play_attention_sound(dev, sound_mode, sound_volume, sound_duration)
 
             elif action == "set_time":
                 _LOGGER.debug('Action : set_time')

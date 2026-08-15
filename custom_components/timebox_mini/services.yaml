@@ -194,7 +194,7 @@ action:
 
     sound:
       name: Attention sound
-      description: Play a built-in Timebox sound briefly while moving text is displayed
+      description: Play a built-in Timebox sound briefly before moving text is displayed
       required: false
       default: false
       selector:
@@ -204,8 +204,8 @@ action:
       name: Built-in sound
       description: Built-in Timebox sound number for moving_text or attention_sound
       required: false
-      example: 0
-      default: 0
+      example: 4
+      default: 4
       selector:
         number:
           min: 0
@@ -217,8 +217,8 @@ action:
       name: Sound volume
       description: Speaker volume for the attention sound (0-15)
       required: false
-      example: 4
-      default: 4
+      example: 8
+      default: 8
       selector:
         number:
           min: 0
@@ -230,8 +230,8 @@ action:
       name: Sound duration
       description: Seconds before the built-in attention sound is stopped
       required: false
-      example: 2
-      default: 2
+      example: 3
+      default: 3
       selector:
         number:
           min: 0.2

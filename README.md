@@ -139,14 +139,14 @@ data:
   repeat: 1
   direction: left
   sound: true
-  sound_mode: 0
-  sound_volume: 4
-  sound_duration: 2
+  sound_mode: 4
+  sound_volume: 8
+  sound_duration: 3
 ```
 
 Moving text is streamed as individual 11x11 frames, so each service call displays only the text from that call.
 The generated font uses full-height uppercase letters, shorter lowercase letters, and monochrome pixels for crisp display on the Timebox Mini matrix.
-`speed: 10` is the fastest supported rate (one frame every 200 ms). When `sound` is enabled, the integration starts one of the Timebox Mini's built-in sounds, keeps streaming the moving-text frames, and explicitly stops the sound after `sound_duration` seconds. The device's one-minute sleep timer is also set as a safety cutoff.
+`speed: 10` is the fastest supported rate (one frame every 200 ms). The Timebox Mini cannot keep its sleep-sound mode and custom-image mode active simultaneously. When `sound` is enabled, the integration therefore plays and stops the built-in sound first, then streams the moving-text frames. The device briefly shows its built-in sleep image during the cue. The device's one-minute sleep timer is also set as a safety cutoff.
 
 The built-in sound can be tested independently:
 
@@ -155,12 +155,12 @@ service: timebox_mini.action
 data:
   mac_addr: "11:75:58:7B:8B:29"
   action: attention_sound
-  sound_mode: 0
-  sound_volume: 4
-  sound_duration: 2
+  sound_mode: 4
+  sound_volume: 8
+  sound_duration: 3
 ```
 
-Sound modes are device-defined numeric slots. The volume range is 0-15 and changes the Timebox Mini's global speaker volume.
+Sound modes are device-defined numeric slots; mode 4 is the verified default for Timebox Mini. The volume range is 0-15 and changes the Timebox Mini's global speaker volume.
 
 ## Troubleshooting
 If the actions are not applied to your Timebox when calling the service, you may need to pair manually with your device first using your OS Bluetooth settings or bluetoothctl:
