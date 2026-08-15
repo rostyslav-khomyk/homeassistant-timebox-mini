@@ -138,10 +138,29 @@ data:
   speed: 10
   repeat: 1
   direction: left
+  sound: true
+  sound_mode: 0
+  sound_volume: 4
+  sound_duration: 2
 ```
 
 Moving text is streamed as individual 11x11 frames, so each service call displays only the text from that call.
 The generated font uses full-height uppercase letters, shorter lowercase letters, and monochrome pixels for crisp display on the Timebox Mini matrix.
+`speed: 10` is the fastest supported rate (one frame every 200 ms). When `sound` is enabled, the integration starts one of the Timebox Mini's built-in sounds, keeps streaming the moving-text frames, and explicitly stops the sound after `sound_duration` seconds. The device's one-minute sleep timer is also set as a safety cutoff.
+
+The built-in sound can be tested independently:
+
+```yaml
+service: timebox_mini.action
+data:
+  mac_addr: "11:75:58:7B:8B:29"
+  action: attention_sound
+  sound_mode: 0
+  sound_volume: 4
+  sound_duration: 2
+```
+
+Sound modes are device-defined numeric slots. The volume range is 0-15 and changes the Timebox Mini's global speaker volume.
 
 ## Troubleshooting
 If the actions are not applied to your Timebox when calling the service, you may need to pair manually with your device first using your OS Bluetooth settings or bluetoothctl:
