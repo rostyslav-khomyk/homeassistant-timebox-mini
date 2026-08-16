@@ -537,7 +537,7 @@ def setup(hass, config):
                     call.data.get(ATTR_SOUND_VOLUME), DEFAULT_SOUND_VOLUME, 0, 15
                 )
                 sound_duration = clamp_float(
-                    call.data.get(ATTR_SOUND_DURATION), DEFAULT_SOUND_DURATION, 0.2, 10.0
+                    call.data.get(ATTR_SOUND_DURATION), DEFAULT_SOUND_DURATION, 0.2, 30.0
                 )
                 delay = max(1, 11 - speed)
                 frame_delay = delay * 0.2
@@ -608,7 +608,7 @@ def setup(hass, config):
                     call.data.get(ATTR_SOUND_VOLUME), DEFAULT_SOUND_VOLUME, 0, 15
                 )
                 sound_duration = clamp_float(
-                    call.data.get(ATTR_SOUND_DURATION), DEFAULT_SOUND_DURATION, 0.2, 10.0
+                    call.data.get(ATTR_SOUND_DURATION), DEFAULT_SOUND_DURATION, 0.2, 30.0
                 )
                 _LOGGER.debug(
                     "Action : attention_sound mode=%d volume=%d duration=%.1f",
