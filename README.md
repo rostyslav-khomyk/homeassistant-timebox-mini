@@ -146,7 +146,7 @@ data:
 
 Moving text is streamed as individual 11x11 frames, so each service call displays only the text from that call.
 The generated font uses full-height uppercase letters, shorter lowercase letters, and monochrome pixels for crisp display on the Timebox Mini matrix.
-`speed: 10` is the fastest supported rate (one frame every 200 ms). The Timebox Mini cannot keep its sleep-sound mode and custom-image mode active simultaneously. When `sound` is enabled, the integration therefore plays and stops the built-in sound first, then streams the moving-text frames. The device briefly shows its built-in sleep image during the cue. The device's one-minute sleep timer is also set as a safety cutoff.
+`speed: 10` is the fastest supported rate (one frame every 200 ms). The Timebox Mini cannot keep its sleep-sound mode and custom-image mode active simultaneously. When `sound` is enabled, the integration therefore plays and stops the built-in sound first, then streams the moving-text frames. The device briefly shows its built-in sleep image during the cue. Starting a cue arms the device's one-minute fail-safe; the stop packet explicitly clears that timer before the next view is shown.
 
 The built-in sound can be tested independently:
 
@@ -161,6 +161,29 @@ data:
 ```
 
 Sound modes are device-defined numeric slots; mode 4 is the verified default for Timebox Mini. The volume range is 0-15 and changes the Timebox Mini's global speaker volume.
+
+Observed Timebox Mini sound slots (device firmware may differ):
+
+| Slot | Observed sound |
+| ---: | --- |
+| 1 | No audible sound |
+| 2 | Birds singing |
+| 3 | Ocean waves |
+| 4 | Pouring water |
+| 5 | Mechanical music-box melody |
+| 6 | No audible sound |
+| 7 | Loud synthesized wave/chord |
+| 8 | Blowing wind |
+| 9 | Forest birds with an owl |
+| 10 | Many small birds chirping |
+| 11 | Flowing river |
+| 12 | Distant passenger-jet/steady engine sound |
+| 13 | Pleasant public-announcement chime |
+| 14 | Small group of birds |
+| 15 | Frogs |
+| 16 | Crib-mobile bedtime melody |
+| 17 | Wind through leaves |
+| 18 | Underwater air bubbles |
 
 ## Troubleshooting
 If the actions are not applied to your Timebox when calling the service, you may need to pair manually with your device first using your OS Bluetooth settings or bluetoothctl:

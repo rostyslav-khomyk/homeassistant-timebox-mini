@@ -49,17 +49,16 @@ class SoundProtocolTest(unittest.TestCase):
 
     def test_stop_sleep_sound_frame(self):
         self.assertEqual(
-            timebox_protocol.set_sleep_sound(False, mode=0, safety_minutes=1),
+            timebox_protocol.set_sleep_sound(False, mode=0),
             [
                 0x01,
                 0x06,
                 0x00,
                 0x40,
-                0x03,
-                0x04,
                 0x00,
                 0x00,
-                0x47,
+                0x00,
+                0x46,
                 0x00,
                 0x02,
             ],
@@ -70,6 +69,8 @@ class SoundProtocolTest(unittest.TestCase):
             timebox_protocol.set_volume(16)
         with self.assertRaises(ValueError):
             timebox_protocol.set_sleep_sound(True, mode=256)
+        with self.assertRaises(ValueError):
+            timebox_protocol.set_sleep_sound(True, safety_minutes=0)
 
     def test_attention_sound_uses_working_default_and_always_stops(self):
         device = self.FakeDevice()
