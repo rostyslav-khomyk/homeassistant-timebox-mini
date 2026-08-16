@@ -163,7 +163,7 @@ data:
 Sound modes are device-defined numeric slots; mode 4 is the verified default for Timebox Mini. The volume range is 0-15 and changes the Timebox Mini's global speaker volume.
 `sound_duration` accepts 0.2-30 seconds. The integration stops the built-in sound explicitly when that duration expires and leaves the device-shutdown timer disabled.
 
-The linked previews are room recordings made at device volume 15, not sound assets extracted from the Timebox. See the [capture notes and repeat estimates](docs/sounds/README.md). The interrupted capture did not produce trustworthy previews for every previously identified slot.
+The linked previews are room recordings, not sound assets extracted from the Timebox. See the [capture notes and repeat estimates](docs/sounds/README.md). The interrupted capture produced trustworthy previews only for slots 2–5; later slots must be recorded again after microphone calibration.
 
 Observed Timebox Mini sound slots (device firmware may differ):
 
@@ -182,11 +182,11 @@ Observed Timebox Mini sound slots (device firmware may differ):
 | 10 | Many small birds chirping | Not captured |
 | 11 | Flowing river | Not captured |
 | 12 | Distant passenger-jet/steady engine sound | Not captured |
-| 13 | Pleasant public-announcement chime | [4.50 s](docs/sounds/slot-13-announcement-chime.m4a) |
+| 13 | Pleasant public-announcement chime | Retest required |
 | 14 | Small group of birds | Not captured |
-| 15 | Frogs | [19.00 s, partial](docs/sounds/slot-15-frogs.m4a) |
-| 16 | Crib-mobile bedtime melody | [29.50 s](docs/sounds/slot-16-crib-mobile.m4a) |
-| 17 | Wind through leaves | [18.75 s, partial](docs/sounds/slot-17-wind-through-leaves.m4a) |
+| 15 | Frogs | Not captured |
+| 16 | Crib-mobile bedtime melody | Not captured |
+| 17 | Wind through leaves | Not captured |
 | 18 | Underwater air bubbles | Not captured |
 
 ## Troubleshooting
