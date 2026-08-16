@@ -34,24 +34,19 @@ def set_volume(level):
     return build_command(0x08, level)
 
 
-def set_sleep_sound(enabled, mode=0, safety_minutes=None):
+def set_sleep_sound(enabled, mode=0, shutdown_minutes=0):
     """Start or stop a built-in Timebox Mini sleep sound.
 
-    Starting the sound uses a one-minute fail-safe. Stopping it must send a
-    zero-minute timer as well as the disabled flag; otherwise the Mini keeps
-    the shutdown countdown after returning to another view.
+    The timer field powers the Timebox down when it expires. Attention cues
+    therefore use zero minutes and rely on their explicit stop command; a
+    non-zero value is available only for callers intentionally using sleep
+    mode as a shutdown timer.
     """
-    if safety_minutes is None:
-        safety_minutes = 1 if enabled else 0
     if not 0 <= mode <= 255:
         raise ValueError("Timebox sound mode must be between 0 and 255")
-    minimum_minutes = 1 if enabled else 0
-    if not minimum_minutes <= safety_minutes <= 255:
-        raise ValueError(
-            "Timebox sound timer must be between "
-            f"{minimum_minutes} and 255 minutes"
-        )
-    return build_command(0x40, safety_minutes, mode, 0xFF if enabled else 0x00)
+    if not 0 <= shutdown_minutes <= 255:
+        raise ValueError("Timebox shutdown timer must be between 0 and 255 minutes")
+    return build_command(0x40, shutdown_minutes, mode, 0xFF if enabled else 0x00)
 
 
 def play_attention_sound(dev, mode=4, volume=8, duration=3.0, sleep=time.sleep):

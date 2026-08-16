@@ -146,7 +146,7 @@ data:
 
 Moving text is streamed as individual 11x11 frames, so each service call displays only the text from that call.
 The generated font uses full-height uppercase letters, shorter lowercase letters, and monochrome pixels for crisp display on the Timebox Mini matrix.
-`speed: 10` is the fastest supported rate (one frame every 200 ms). The Timebox Mini cannot keep its sleep-sound mode and custom-image mode active simultaneously. When `sound` is enabled, the integration therefore plays and stops the built-in sound first, then streams the moving-text frames. The device briefly shows its built-in sleep image during the cue. Starting a cue arms the device's one-minute fail-safe; the stop packet explicitly clears that timer before the next view is shown.
+`speed: 10` is the fastest supported rate (one frame every 200 ms). The Timebox Mini cannot keep its sleep-sound mode and custom-image mode active simultaneously. When `sound` is enabled, the integration therefore plays and stops the built-in sound first, then streams the moving-text frames. The device briefly shows its built-in sleep image during the cue. Attention cues explicitly stop the sound without arming the sleep mode's device-shutdown timer.
 
 The built-in sound can be tested independently:
 
@@ -161,29 +161,33 @@ data:
 ```
 
 Sound modes are device-defined numeric slots; mode 4 is the verified default for Timebox Mini. The volume range is 0-15 and changes the Timebox Mini's global speaker volume.
+`sound_duration` accepts 0.2-30 seconds. The integration stops the built-in sound explicitly when that duration expires and leaves the device-shutdown timer disabled.
+
+The linked previews are room recordings, not sound assets extracted from the Timebox. See the [capture notes and repeat estimates](docs/sounds/README.md). The interrupted capture produced trustworthy previews only for slots 2–5; later slots must be recorded again after microphone calibration.
 
 Observed Timebox Mini sound slots (device firmware may differ):
 
-| Slot | Observed sound |
-| ---: | --- |
-| 1 | No audible sound |
-| 2 | Birds singing |
-| 3 | Ocean waves |
-| 4 | Pouring water |
-| 5 | Mechanical music-box melody |
-| 6 | No audible sound |
-| 7 | Loud synthesized wave/chord |
-| 8 | Blowing wind |
-| 9 | Forest birds with an owl |
-| 10 | Many small birds chirping |
-| 11 | Flowing river |
-| 12 | Distant passenger-jet/steady engine sound |
-| 13 | Pleasant public-announcement chime |
-| 14 | Small group of birds |
-| 15 | Frogs |
-| 16 | Crib-mobile bedtime melody |
-| 17 | Wind through leaves |
-| 18 | Underwater air bubbles |
+| Slot | Observed sound | Preview |
+| ---: | --- | --- |
+| 0 | No audible sound in the 30-second capture | — |
+| 1 | No audible sound | — |
+| 2 | Birds singing | [30.00 s](docs/sounds/slot-02-birds.m4a) |
+| 3 | Ocean waves | [29.75 s](docs/sounds/slot-03-ocean-waves.m4a) |
+| 4 | Pouring water | [30.00 s](docs/sounds/slot-04-pouring-water.m4a) |
+| 5 | Mechanical music-box melody | [23.00 s](docs/sounds/slot-05-music-box.m4a) |
+| 6 | No audible sound | — |
+| 7 | Loud synthesized wave/chord | Not captured |
+| 8 | Blowing wind | Not captured |
+| 9 | Forest birds with an owl | Not captured |
+| 10 | Many small birds chirping | Not captured |
+| 11 | Flowing river | Not captured |
+| 12 | Distant passenger-jet/steady engine sound | Not captured |
+| 13 | Pleasant public-announcement chime | Retest required |
+| 14 | Small group of birds | Not captured |
+| 15 | Frogs | Not captured |
+| 16 | Crib-mobile bedtime melody | Not captured |
+| 17 | Wind through leaves | Not captured |
+| 18 | Underwater air bubbles | Not captured |
 
 ## Troubleshooting
 If the actions are not applied to your Timebox when calling the service, you may need to pair manually with your device first using your OS Bluetooth settings or bluetoothctl:
